@@ -3,7 +3,8 @@
     python scripts/summarize_results.py
 
 Reads outputs/benchmark, outputs/nn, outputs/interpret, outputs/campaign_state.json, outputs/campaign.log,
-data/parquet/_manifest, data/features. Writes outputs/summary/summary.md (+ .json) and docs/figures/*.png.
+data/parquet/_manifest, data/features. Writes outputs/summary/summary.md (+ .json) and interactive
+figure previews in outputs/figures/; the static docs/figures/*.png come from scripts/make_figures.py.
 Sections that lack inputs are skipped.
 """
 

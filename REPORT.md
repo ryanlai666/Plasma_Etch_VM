@@ -6,7 +6,27 @@ selection, CV+, hybrid, physics checks — `scripts/review_analyses.py`), `outpu
 (`scripts/summarize_results.py`), `outputs/nn/`, `outputs/campaign.log`, `data/parquet/_manifest/`, MLflow
 (`mlruns/mlflow.db`). These outputs are not part of the repository; the commands in section 12 regenerate them.
 
-## 1. Summary
+## Summary
+
+![Four panels: Si depth vs wafer slot per lot; model RMSE comparison; hybrid predicted vs measured; F-line ratio drift](docs/figures/hero.png)
+
+*(a) Si depth falls wafer by wafer in every lot; (b) leave-one-lot-out RMSE of the key models with 95 %
+lot-bootstrap CIs; (c) out-of-fold predictions of the hybrid with 90 % CV+ intervals; (d) the window-independent
+F-line ratio, lot mean removed. Figures: `scripts/make_figures.py` (from saved outputs).*
+
+| Si depth unless noted (88 wafers, 10 lots, leave-one-lot-out) | RMSE [95 % CI] | note |
+|---|---|---|
+| predict the training mean | 0.404 µm | reference |
+| OLS slot + cycles + conditioning (baseline) | 0.199 µm [0.159, 0.234] | wafer order explains most of the variance |
+| ridge, tool + context (pre-declared, served default) | 0.172 µm [0.135, 0.206] | vs baseline −0.027 [−0.064, +0.014], not significant |
+| LightGBM, tool + context | 0.149 µm [0.124, 0.169] | vs ridge −0.023 [−0.054, +0.008], not significant |
+| hybrid n_cycles × GBM rate = nested-by-lot selection over 22 configs | **0.123 µm [0.106, 0.139]** | vs baseline −0.076 [−0.113, −0.039]; chosen in 10/10 folds |
+| neural: 1D-CNN / StatFE tool + OES / StatFE tool only (3 seeds) | 0.276 / 0.256 / 0.249 µm | worse than ridge, Δ +0.065 … +0.072, CIs exclude 0 |
+| adding OES to tool + context (LightGBM) | +0.013 µm [+0.002, +0.025] | spectra add nothing in this DOE |
+| robust non-uniformity P5–P95, ridge (baseline 0.163 %) | 0.112 % [0.083, 0.144] | vs baseline −0.051 [−0.080, −0.018] |
+| 90 % intervals, nested CV+ vs split conformal (ridge) | coverage 0.93 vs 0.94; width 0.63 vs 0.92 µm | CV+ narrower and steadier |
+
+## 1. Findings
 
 * **Data:** all 10 OES day files (96 wafers, 1 420 272 spectra × 3648 channels), the full tool log
   (96 wafers × 31 parameters @ 5 Hz) and the 89-point metrology (**88 labelled wafers in 10 lots; lot 7 has 6,
@@ -73,6 +93,16 @@ Per-day ingestion (concurrent with the next downloads): 116–180 s per 10-wafer
 * DuckDB / Polars over the hive-partitioned store (1 420 272 OES rows): `count(*)` 188.4 s → 3.4 s and the
   F I line query (37 of 3 648 columns, 986 380 rows) 16.9 s → 3.8 s after switching off `union_by_name`
   (all partitions share one validated schema).
+* Other data findings (`docs/data_schema.md`): detector baseline jitter makes the raw channel sum unusable as a
+  plasma signal (plasma state is taken from the emission-line signals instead); OES (epoch) and tool
+  (relative) clocks cannot be aligned, so the two streams are segmented separately; the 9-point metrology is
+  rotated 180° relative to the 89-point table.
+* Features: 1 304 per wafer — tool-signal statistics per BOSCH step, timing and cycle counts, OES line
+  intensities, ratios and step transitions, slot / conditioning context, and binned spectra.
+
+![OES spectrum](docs/figures/oes_spectrum.png)
+![OES line trace](docs/figures/oes_trace.png)
+![89-point wafer map](docs/figures/wafer_map.png)
 
 ## 4. Wafer-level results (leave-one-lot-out, 88 wafers, lot-bootstrap 95 % CIs)
 
@@ -150,9 +180,13 @@ holds; conditional (per-lot) coverage does not reach 0.9 for every chamber state
 context), with the 10 leave-one-lot-out fold models and their residuals stored so the API returns **CV+**
 intervals for a new wafer (`PEVM_BUNDLE=outputs/model_bundle_v2.joblib uvicorn plasma_etch_vm.serve.api:app`).
 Leave-one-lot-out RMSE 0.123 µm; nested CV+ coverage 0.932 (min lot 0.80), mean width 0.435 µm (table above).
-The pre-declared ridge bundle (`outputs/model_bundle.joblib`, all targets) stays the **default**. Note: the
-hybrid was chosen after the first results were known (nested selection guards the choice among 22 configs,
-not the construction of that list); v2 serves Si depth only.
+The pre-declared ridge bundle (`outputs/model_bundle.joblib`, all targets) stays the **default**; v2 serves Si
+depth only and was chosen after the first results (caveat in section 10).
+
+Serving: FastAPI (`GET /health /model /predict/{wafer_id}`, `POST /predict`, intervals included), a Streamlit
+dashboard (predicted vs measured, top features, OES line viewer, wafer maps) and a Dockerfile. CPU inference
+latency per wafer and target: ridge 0.7 ms, PLS 0.9 ms, LightGBM 1.3 ms, StatFE 2.3 ms, 1D-CNN 11.6 ms; API
+round trip for 5 targets ~15 ms.
 
 ## 5. Neural models (Colab L4)
 
@@ -332,12 +366,60 @@ models (1D-CNN, StatFE transformer) lose clearly to linear models at n = 88.
 ## 12. Reproduce
 
 ```bash
-python scripts/run_campaign.py --stages data,cpu,gpu   # resumable; logs to outputs/campaign.log
-pevm benchmark                                         # incl. the slot/cycles/conditioning baseline
-python scripts/review_analyses.py                      # bootstrap CIs, nested selection, CV+, hybrid, physics
-python scripts/idle_features.py                        # exploratory idle-time features (section 7)
-pevm export && pevm export-v2                          # served bundles (ridge default, v2 hybrid candidate)
-python scripts/summarize_results.py                    # summary tables + figures
+uv venv .venv --python 3.12 && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+uv pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cu128   # or the CPU wheel
+uv pip install -r requirements-lock.txt && uv pip install --no-deps -e .
+
+# whole campaign: download (3 streams, MD5) -> ingest -> verify -> delete raw day file; CPU stages; neural runs
+python scripts/run_campaign.py --stages data,cpu,gpu     # resumable; logs to outputs/campaign.log
+python scripts/review_analyses.py                        # bootstrap CIs, nested selection, CV+, hybrid, physics
+python scripts/idle_features.py                          # exploratory idle-time features (section 7)
+python scripts/summarize_results.py                      # summary tables (outputs/summary/)
+python scripts/make_figures.py                           # docs/figures/*.png from the saved outputs
+
+# individual stages
+pevm download | ingest | query-bench | cycles | lines | features | benchmark | points | interpret | export | export-v2
+pevm train-nn --config models/cnn1d.yaml                 # < 1 GB VRAM; CPU works too (slower)
+python scripts/pack_nn_inputs.py                         # 5 MB tar.gz of per-wafer tensors + code for a cloud GPU
+#   on the GPU machine: bash pack/code/scripts/colab_run_nn.sh   (all 9 neural runs, resumable)
+
+# serve / visualise (CPU)
+uvicorn plasma_etch_vm.serve.api:app --port 8000         # GET /health /model /predict/{wafer_id}; POST /predict
+streamlit run src/plasma_etch_vm/dashboard/app.py
+mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db
+pytest -q && ruff check src tests scripts
 ```
 
-Installation and the neural-model / Colab route: see the README.
+Config values can be overridden on the command line (`pevm benchmark cv.scheme=lolo`). On a shared GPU, set
+`GPU_GUARD` to the path of a GPU-scheduler wrapper script and the campaign runs every neural job through it with
+a 1 GB reservation; unset, jobs start directly. Docker: `pevm export && docker build -t plasma-etch-vm:0.1 .`
+(the Dockerfile is provided but was not built for this release). Colab: `notebooks/colab_launcher.ipynb`.
+
+## 13. Repository layout
+
+```
+configs/            data.yaml, features.yaml, models/{tabular,cnn1d,statfe_transformer}.yaml
+src/plasma_etch_vm/ zenodo, netcdf_io, ingest, store, segmentation, lines, metrology, features/, models/,
+                    pipeline, reports, tracking, serve/api.py, dashboard/{app,figures}.py, cli.py
+scripts/            run_campaign.py, review_analyses.py, idle_features.py, summarize_results.py, make_figures.py,
+                    render_figures.py, pack_nn_inputs.py, colab_run_nn.sh, make_colab_notebook.py
+notebooks/          colab_launcher.ipynb
+tests/              synthetic netCDF fixtures + 33 CPU tests
+docs/               data_schema.md, line_detection.md, figures/
+```
+
+## 14. References
+
+* Sayyed, M. A., Seifert, T., Zieger, S., Schwarzenberg, S., Deshmukh, A., Haase, M., Langer, J. (2025).
+  *A Multi-Model Dataset for BOSCH Plasma-Etching: Optical Emission Spectra, Process Parameters, and Wafer
+  Measurements for Data-Driven Plasma Modeling.* Zenodo. https://doi.org/10.5281/zenodo.17122442 (CC BY 4.0)
+* Lee, G. T., Kwon, O.-R. (2024). *A Predictive Model Based on Transformer with Statistical Feature Embedding
+  in Manufacturing Sensor Dataset.* [arXiv:2407.06682](https://arxiv.org/abs/2407.06682) — reimplemented here.
+* Pamarty, A. P., Neuweiler, R., Do, L. Q., Johnson, K., Sanchez, J. J., Koli, D. (2024). *Data-driven
+  surrogate model for etch rate profiles using sensor data from a reactive ion etcher.*
+  [arXiv:2409.12925](https://arxiv.org/abs/2409.12925).
+* Barber, Candès, Ramdas, Tibshirani (2021), *Predictive inference with the jackknife+*, Ann. Statist. 49(1)
+  (CV+); Vovk, Gammerman, Shafer (2005), *Algorithmic Learning in a Random World* (split conformal).
+* McCann, M., Johnston, A. (2008). *SECOM* [dataset]. UCI ML Repository, https://doi.org/10.24432/C54305
+  (optional sanity dataset, not used).
+* NIST Atomic Spectra Database (F I lines); Pearse & Gaydon (C₂ Swan band heads).

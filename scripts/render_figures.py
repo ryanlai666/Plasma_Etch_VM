@@ -2,7 +2,8 @@
 
     python scripts/render_figures.py [--png]
 
-Outputs: outputs/figures/*.html (interactive, inline plotly.js) and docs/figures/*.png (README images).
+Outputs: outputs/figures/*.html (interactive, inline plotly.js) and optional PNG screenshots next to them.
+The static PNGs used in README.md / REPORT.md come from scripts/make_figures.py (matplotlib).
 Uses the same builders as the Streamlit dashboard.
 """
 
@@ -24,7 +25,7 @@ from plasma_etch_vm.lines import LINES  # noqa: E402
 
 OUT = ROOT / "outputs"
 FEAT = ROOT / "data" / "features"
-FIGDIR = ROOT / "docs" / "figures"
+FIGDIR = ROOT / "outputs" / "figures"  # interactive views; README/REPORT PNGs: scripts/make_figures.py
 HTMLDIR = OUT / "figures"
 
 BROWSERS = [
