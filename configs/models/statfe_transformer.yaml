@@ -1,0 +1,36 @@
+# Transformer with statistical feature embedding + window positional encoding (arXiv:2407.06682).
+# Tokens = (sensor, window) pairs; sensor = (phase, tool parameter or OES line); d = 6 statistics.
+defaults: [../features.yaml]
+
+run_name: statfe_transformer
+seed: 0
+tracking: {uri: "sqlite:./mlruns/mlflow.db", experiment: plasma_etch_vm_nn}
+
+model:
+  type: statfe
+  sources: [process, oes]   # [process] alone runs on all 96 wafers; oes needs the day files
+  oes_lines: [F_624, F_685, F_690, F_703, F_739, C2_516, C2_563]
+  n_windows: 10
+  max_cycle: 100
+  d_model: null             # null = paper design (embedding dim = 6 statistics); int = linear projection
+  n_heads: 1
+  n_layers: 1
+  ff_dim: 32
+  dropout: 0.1
+
+targets: [si_etch_mean, si_nu_p90_pct, ox_etch_mean]   # robust (P5-P95) NU; half-range is outlier-dominated
+
+cv: {scheme: lolo, min_groups: 3, n_splits: 5}
+conformal: {alpha: 0.1}
+
+train:
+  epochs: 300
+  batch_size: 16
+  lr: 1.0e-3
+  weight_decay: 1.0e-2
+  device: auto
+  max_folds: null
+
+checkpoint:
+  dir: checkpoints/statfe
+  every_minutes: 20

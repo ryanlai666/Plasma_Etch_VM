@@ -1,0 +1,24 @@
+# Feature engineering config. Inherits paths/files from data.yaml.
+defaults: [data.yaml]
+
+features:
+  bin_width: 8              # channels per spectral bin (3648 -> 456 bins of ~1.5 nm)
+  # Lines entering the feature set. Detected on the 2024-08-05 day (docs/line_detection.md):
+  # ten F I lines (SF6 step, SNR 13-232) and the C2 Swan bands (C4F8 step, SNR 22-116).
+  # Si, SiF, CF2, CF, CS, O, CO, Ar, He, H, N2, OH: not detected (SNR < 5) -> excluded.
+  lines: [F_624, F_634, F_641, F_677, F_685, F_690, F_703, F_712, F_739, F_775, C2_516, C2_513, C2_563]
+  # Log-ratios. [phase, numerator, denominator] (same phase) or
+  # [num_phase, numerator, den_phase, denominator] (cross-phase, per cycle).
+  ratios:
+    F703_F685: [etch, F_703, F_685]          # two F I lines with different upper levels: Te / optical-depth proxy
+    F_dep_over_etch: [dep, F_685, etch, F_685]  # residual F in the passivation step: gas-exchange / SF6 carry-over
+    C2_over_F_dep: [dep, C2_516, F_685]        # passivation-to-etchant balance during C4F8 step
+    C2_dep_over_F_etch: [dep, C2_516, etch, F_685]  # polymer deposition vs etchant supply per cycle
+    C2_563_516: [dep, C2_563, C2_516]          # C2 vibrational distribution (gas temperature proxy)
+  transitions: true         # rise / fall times of F I and C2 at step switches (oes_trace)
+
+metrology:
+  points: points_89         # primary metrology table (88 wafers); points_9 = secondary (lots 8, 10 missing)
+
+lines:
+  snr_min: 5.0

@@ -1,0 +1,60 @@
+# Tabular VM benchmark (PLS / ridge / gradient boosting / PCA / NMF) with split-conformal intervals.
+defaults: [../features.yaml]
+
+run_name: tabular
+seed: 0
+tracking: {uri: "sqlite:./mlruns/mlflow.db", experiment: plasma_etch_vm}
+
+cv:
+  scheme: lolo        # leave-one-lot-out (10 folds on all days); falls back to LOO with < min_groups lots
+  min_groups: 3
+  n_splits: 5
+
+conformal:
+  alpha: 0.1          # 90 % nominal intervals
+
+targets: [si_etch_mean, si_nu_halfrange_pct, si_nu_p90_pct, si_edge_center, ox_etch_mean, selectivity]
+
+# feature set name -> feature groups (see features/wafer.py GROUP_PREFIXES)
+feature_sets:
+  slot_cycles_cond: [context, cycle_count]   # physics/DOE baseline: slot + conditioning + #cycles
+  context: [context]
+  tool: [tool, timing]
+  tool_context: [tool, timing, context]
+  oes_physics: [oes, ratio, oes_timing, transition]
+  oes_spectrum: [spectrum]
+  oes_tool_context: [oes, ratio, oes_timing, transition, tool, timing, context]
+
+models: [mean, ols, ridge, pls, gbm, pca_ridge, nmf_ridge]
+model_feature_sets:            # which models run on which feature set
+  slot_cycles_cond: [mean, ols, ridge]
+  context: [mean, ridge, gbm]
+  tool: [mean, ridge, pls, gbm]
+  tool_context: [mean, ridge, pls, gbm]
+  oes_physics: [mean, ridge, pls, gbm]
+  oes_spectrum: [mean, pls, pca_ridge, nmf_ridge]
+  oes_tool_context: [mean, ridge, pls, gbm]
+
+model_params:
+  ridge: {alpha_logspace: [-2, 4, 25]}
+  pls: {n_components: 3}
+  pca_ridge: {n_components: 8, alpha_logspace: [-2, 4, 25]}
+  nmf_ridge: {n_components: 6, alpha_logspace: [-2, 4, 25]}
+  gbm: {n_estimators: 300, learning_rate: 0.03, num_leaves: 7, max_depth: 3, min_child_samples: 5,
+        subsample: 0.8, colsample_bytree: 0.5}
+
+point_model:
+  feature_groups: [tool, timing, context]
+
+interpret:
+  feature_set: tool_context
+  targets: [si_etch_mean, si_nu_halfrange_pct, si_nu_p90_pct, ox_etch_mean]
+  models: [ridge, gbm]
+  n_repeats: 5
+  top: 20
+
+export:
+  feature_set: tool_context
+  model: ridge
+  targets: [si_etch_mean, si_nu_halfrange_pct, si_nu_p90_pct, si_edge_center, ox_etch_mean, selectivity]
+  alphas: [0.1, 0.2]

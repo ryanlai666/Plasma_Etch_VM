@@ -1,0 +1,20 @@
+# keep the build context small: only src, configs, the exported bundle and the feature table
+.venv
+.git
+mlruns
+checkpoints
+notebooks
+tests
+data/raw
+data/parquet
+data/interim
+data/processed
+data/features/_cache
+data/features/cycles_*.parquet
+data/features/wafer_spectra.parquet
+outputs/benchmark
+outputs/nn
+outputs/interpret
+outputs/ingest
+**/__pycache__
+*.pyc

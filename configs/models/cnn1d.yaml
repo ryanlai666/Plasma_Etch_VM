@@ -1,0 +1,32 @@
+# 1D-CNN on window-averaged OES spectra (etch + dep phase as 2 input channels).
+defaults: [../features.yaml]
+
+run_name: cnn1d
+seed: 0
+tracking: {uri: "sqlite:./mlruns/mlflow.db", experiment: plasma_etch_vm_nn}
+
+model:
+  type: cnn1d
+  n_windows: 10       # 10 windows x 10 cycles -> 10 instances per wafer (multi-instance training)
+  max_cycle: 100
+  width: 32
+  depth: 4
+  dropout: 0.2
+
+targets: [si_etch_mean, si_nu_p90_pct, ox_etch_mean]   # robust (P5-P95) NU; half-range is outlier-dominated
+
+cv: {scheme: lolo, min_groups: 3, n_splits: 5}
+conformal: {alpha: 0.1}
+
+train:
+  epochs: 150
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 1.0e-2
+  noise_std: 0.05     # Gaussian input noise (standardised units) as augmentation
+  device: auto
+  max_folds: null     # smoke test: 1-2
+
+checkpoint:
+  dir: checkpoints/cnn1d
+  every_minutes: 20

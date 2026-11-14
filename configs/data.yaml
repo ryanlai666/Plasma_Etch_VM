@@ -1,0 +1,64 @@
+# Data acquisition + ingestion config.
+zenodo:
+  record_id: 17122442
+  api_url: https://zenodo.org/api/records/17122442
+  small_files:
+    - Readme.pdf
+    - Wafer_layout.pdf
+    - Lot_status.xlsx
+    - Dictionary_OES.nc
+    - Dictionary_process.nc
+    - Process_data.nc
+    - Si_Oxide_etch_9_points.csv
+    - Si_Oxide_etch_89_points.csv
+  # Day files to download. Default: only the smallest day file (quick start); the other nine
+  # (~7.4 GB) -> set to `all` for the full benchmark.
+  day_files:
+    - Day_2024_08_05.nc
+  min_free_gb: 15.0
+
+paths:
+  raw: data/raw
+  parquet: data/parquet
+  features: data/features
+  outputs: outputs
+
+files:
+  process: Process_data.nc
+  process_dictionary: Dictionary_process.nc
+  oes_dictionary: Dictionary_OES.nc
+  points_89: Si_Oxide_etch_89_points.csv
+  points_9: Si_Oxide_etch_9_points.csv
+  lot_status: Lot_status.xlsx
+
+# Anonymous gas channels -> chemistry (inferred from the 4.5 s / 1.5 s duty cycle, see docs/data_schema.md)
+gas_map:
+  sf6: Gas5Flow
+  c4f8: Gas4Flow
+  sf6_nominal: 600.0
+  c4f8_nominal: 300.0
+  source_power: SourceRFLoadPower
+  plasma_on_w: 500.0
+  min_frac: 0.2
+
+ingest:
+  # OES rows per read block. "auto" = the HDF5 chunk height (~5000 rows, gzip-9), so every
+  # compressed chunk is inflated exactly once. Peak RAM ~ 5000*3648*(2+4) B = 110 MB per block.
+  chunk_rows: auto
+  # codes      : uint16 dictionary codes, lossless, ~92 MB/wafer (byte-stream-split + zstd)
+  # counts_i16 : intensities rounded to integer counts (|err|<=0.5 count, noise ~14), ~64 MB/wafer
+  # float32    : decoded intensities, largest
+  # The raw netCDF files remain the lossless archive; Parquet is the analytics copy.
+  store_oes_as: counts_i16
+  row_group_rows: 20000     # rows buffered per step before a row group is flushed (<= ~150 MB RAM)
+  compression: zstd
+  compression_level: 3
+  # Stored OES wavelength axis is offset by ~ -1.22 nm; each wafer is re-calibrated on the F I
+  # multiplet (lines.calibrate_wavelengths). This default is used only if that fit fails.
+  default_wavelength_calibration: {a: 1.331, b: 0.99985, shift_nm: 1.22, method: default}
+  oes_phase:
+    etch_line: F_685        # F I 685.6 nm, high in the SF6 step
+    dep_line: C2_516        # C2 Swan (0,0) head, high in the C4F8 step
+    plasma_on_frac: 0.2
+    min_len: 3
+    ign_s: 1.0

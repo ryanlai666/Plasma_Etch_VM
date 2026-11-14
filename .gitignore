@@ -1,0 +1,56 @@
+# environments
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# data (raw + derived) — see DATA.md for how to re-download
+data/raw/*
+!data/raw/.gitkeep
+data/interim/
+data/processed/
+data/parquet/
+data/features/
+
+# experiment tracking / artefacts
+mlruns/
+mlartifacts/
+outputs/
+checkpoints/
+*.ckpt
+*.pt
+*.joblib
+*.lgb
+
+# misc
+.DS_Store
+Thumbs.db
+.env
+
+# secrets (never commit API keys or tokens)
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# local editor settings (not part of the project)
+.vscode/
+.idea/
+
+# local working notes (not published)
+notes/
+
+# notebooks, logs, OS files
+*.log
+
+# model weights and large binaries (see DATA.md / README to regenerate)
+*.pth
+*.onnx
+*.safetensors
+*.h5
+*.zip
+*.tar.gz
