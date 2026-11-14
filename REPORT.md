@@ -376,6 +376,7 @@ python scripts/review_analyses.py                        # bootstrap CIs, nested
 python scripts/idle_features.py                          # exploratory idle-time features (section 7)
 python scripts/summarize_results.py                      # summary tables (outputs/summary/)
 python scripts/make_figures.py                           # docs/figures/*.png from the saved outputs
+python scripts/make_overview.py                          # docs/figures/overview.png (README card)
 
 # individual stages
 pevm download | ingest | query-bench | cycles | lines | features | benchmark | points | interpret | export | export-v2
@@ -402,7 +403,7 @@ configs/            data.yaml, features.yaml, models/{tabular,cnn1d,statfe_trans
 src/plasma_etch_vm/ zenodo, netcdf_io, ingest, store, segmentation, lines, metrology, features/, models/,
                     pipeline, reports, tracking, serve/api.py, dashboard/{app,figures}.py, cli.py
 scripts/            run_campaign.py, review_analyses.py, idle_features.py, summarize_results.py, make_figures.py,
-                    render_figures.py, pack_nn_inputs.py, colab_run_nn.sh, make_colab_notebook.py
+                    make_overview.py, render_figures.py, pack_nn_inputs.py, colab_run_nn.sh, make_colab_notebook.py
 notebooks/          colab_launcher.ipynb
 tests/              synthetic netCDF fixtures + 33 CPU tests
 docs/               data_schema.md, line_detection.md, figures/

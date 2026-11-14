@@ -4,11 +4,10 @@ Predicts how deep each silicon wafer was etched, and how uniformly, from the etc
 optical emission spectra (OES), before the wafer is measured, with calibrated uncertainty. Built and evaluated
 end to end on a public dataset of 96 wafers from a production-class deep-silicon etcher.
 
-![Four panels: Si depth falls with wafer slot in every lot; model RMSE comparison; hybrid predicted vs measured; F-line ratio drift](docs/figures/hero.png)
+![Overview: one wafer's optical emission and gas flows go in; its measured depth map and the predicted wafer-mean depth with a 90 % interval come out; predicted vs measured depth for all 88 wafers](docs/figures/overview.png)
 
-*Si etch depth, each of the 10 lots held out in turn (88 labelled wafers): (a) the per-lot drift that dominates
-the problem, (b) every key model's error with 95 % lot-bootstrap CIs, (c) the best model's held-out predictions
-with 90 % intervals, (d) the optical drift signal behind it.*
+*One wafer's emission spectra and tool log → predicted wafer-mean depth with a 90 % interval, checked against its
+measured 89-site map → the same for all 88 wafers, each lot held out.*
 
 ## Results at a glance
 
@@ -22,6 +21,12 @@ Leave-one-lot-out RMSE [lot-bootstrap 95 % CI]; predicting the training mean giv
 | Neural models: 1D-CNN on spectra, StatFE transformer (3 seeds each) | 0.249–0.276 µm | clearly worse than ridge at n = 88 (CIs exclude 0) |
 | 90 % prediction intervals, nested CV+ (ridge) | 0.93 coverage, 0.63 µm mean width | ~30 % narrower and steadier than split conformal |
 | Robust within-wafer non-uniformity (P5–P95), ridge | 0.112 % [0.083, 0.144] | tool sensors clearly beat the baseline (0.163 %) |
+
+![Four panels: Si depth falls with wafer slot in every lot; model RMSE comparison; hybrid predicted vs measured; F-line ratio drift](docs/figures/hero.png)
+
+*Si etch depth, each of the 10 lots held out in turn (88 labelled wafers): (a) the per-lot drift that dominates
+the problem, (b) every key model's error with 95 % lot-bootstrap CIs, (c) the best model's held-out predictions
+with 90 % intervals, (d) the optical drift signal behind it.*
 
 ## Key findings
 
